@@ -1,38 +1,26 @@
-# Filesystem Server
+# filesystem-server
 
-An MCP server providing sandboxed file operations and terminal access via FastMCP.
+Provides sandboxed file and terminal operations. All paths are resolved within `ROOT_DIR` and cannot escape it.
 
-## Installation
+## Tools
 
-```bash
-cd filesystem_server
-pip install -e .
-```
+### Navigation
+- `ls(path?, show_hidden?)` — List directory contents
+- `tree(path?, depth?)` — Recursive directory tree (default depth: 3)
+- `file_glob_search(pattern)` — Find files by glob pattern (max 200 results)
 
-## Usage
+### Reading
+- `read_file(path)` — Read full file contents
+- `read_file_range(path, start_line, end_line)` — Read a line range (1-indexed, inclusive)
+- `grep_search(pattern, path?, glob?)` — Regex search across files (max 200 matches)
 
-```bash
-# Run with current directory as sandbox root
-filesystem-server
+### Writing
+- `create_new_file(path, content)` — Create a new file (fails if it already exists)
+- `write_file(path, content)` — Write or overwrite a file
+- `single_find_and_replace(path, find, replace, occurrence?)` — Replace the nth occurrence of a string
+- `create_directory(path)` — Create a directory (including parents)
+- `delete_file(path, confirm=True)` — Delete a file
 
-# Run with a specific root directory
-ROOT_DIR=/path/to/sandbox filesystem-server
-```
-
-## Configuration
-
-| Environment Variable | Description | Default |
-|---|---|---|
-| `ROOT_DIR` | Sandbox root directory for all file operations | `.` (cwd) |
-| `ALLOWED_CMDS` | Comma-separated allowlist for `run_terminal_command` | python, pytest, git, ls, cat, grep, … |
-
-## Available Tools
-
-- **ls** / **tree** / **file_glob_search** — Navigate and find files
-- **read_file** / **read_file_range** / **grep_search** — Read and search content
-- **create_new_file** / **write_file** / **single_find_and_replace** — Create and edit files
-- **delete_file** / **create_directory** — Manage files and directories
-- **view_diff** — Compare files or content
-- **run_terminal_command** — Execute allowlisted shell commands
-
-All file paths are resolved relative to `ROOT_DIR` and sandboxed to prevent escaping the root.
+### Utilities
+- `view_diff(path_a, path_b_or_content)` — Unified diff between two files or a file and a string
+- `run_terminal_command(command, timeout?)` — Run an allowlisted shell command (default timeout: 30s, max: 120s)
