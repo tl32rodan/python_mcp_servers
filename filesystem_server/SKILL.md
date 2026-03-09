@@ -1,6 +1,7 @@
-# filesystem-server
-
-Provides sandboxed file and terminal operations. All paths are resolved within `ROOT_DIR` and cannot escape it.
+---
+name: filesystem-server
+description: Provides sandboxed file and terminal operations. All paths are resolved within ROOT_DIR and cannot escape it.
+---
 
 ## Tools
 
