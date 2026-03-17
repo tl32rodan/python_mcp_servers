@@ -1,7 +1,7 @@
 """MCP Filesystem & Terminal Server.
 
 A Python MCP server providing file navigation, reading, writing, and
-terminal command execution within a sandboxed ROOT_DIR.
+terminal command execution.
 """
 
 import difflib
@@ -17,7 +17,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import Field
 
-from filesystem_server.path_utils import get_root_dir, resolve_path
+from filesystem_server.path_utils import resolve_path
 
 mcp = FastMCP("Filesystem & Terminal")
 
@@ -43,7 +43,7 @@ def _allowed_commands() -> set[str]:
 
 @mcp.tool()
 def ls(
-    path: Annotated[str, Field(description="Directory path relative to ROOT_DIR")] = ".",
+    path: Annotated[str, Field(description="Directory path (relative or absolute)")] = ".",
     show_hidden: Annotated[bool, Field(description="Include hidden files/dirs")] = False,
 ) -> str:
     """List files and directories at the given path."""
@@ -69,7 +69,7 @@ def ls(
 
 @mcp.tool()
 def tree(
-    path: Annotated[str, Field(description="Directory path relative to ROOT_DIR")] = ".",
+    path: Annotated[str, Field(description="Directory path (relative or absolute)")] = ".",
     max_depth: Annotated[int, Field(description="Maximum depth to recurse")] = 3,
 ) -> str:
     """Show a recursive directory tree up to max_depth levels."""
@@ -106,20 +106,15 @@ def file_glob_search(
     pattern: Annotated[str, Field(description="Glob pattern, e.g. '**/*.py'")],
     path: Annotated[str, Field(description="Directory to search from")] = ".",
 ) -> str:
-    """Find files matching a glob pattern. Returns paths relative to ROOT_DIR."""
+    """Find files matching a glob pattern. Returns matched file paths."""
     resolved = resolve_path(path)
     if not resolved.is_dir():
         raise ToolError(f"'{path}' is not a directory.")
 
-    root = get_root_dir()
     matches: list[str] = []
     for match in resolved.glob(pattern):
         if match.is_file():
-            try:
-                rel = match.relative_to(root)
-            except ValueError:
-                continue
-            matches.append(str(rel))
+            matches.append(str(match))
             if len(matches) >= 200:
                 break
 
@@ -139,7 +134,7 @@ def file_glob_search(
 
 @mcp.tool()
 def read_file(
-    path: Annotated[str, Field(description="File path relative to ROOT_DIR")],
+    path: Annotated[str, Field(description="File path (relative or absolute)")],
 ) -> str:
     """Read the full content of a text file."""
     resolved = resolve_path(path)
@@ -153,7 +148,7 @@ def read_file(
 
 @mcp.tool()
 def read_file_range(
-    path: Annotated[str, Field(description="File path relative to ROOT_DIR")],
+    path: Annotated[str, Field(description="File path (relative or absolute)")],
     start_line: Annotated[int, Field(description="Start line number (1-indexed)")],
     end_line: Annotated[int, Field(description="End line number (inclusive)")],
 ) -> str:
@@ -189,7 +184,6 @@ def grep_search(
 ) -> str:
     """Search file contents by regex pattern. Returns matching lines with file paths and line numbers."""
     resolved = resolve_path(path)
-    root = get_root_dir()
 
     try:
         regex = re.compile(pattern)
@@ -203,13 +197,9 @@ def grep_search(
             text = file_path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, PermissionError):
             return
-        try:
-            rel = file_path.relative_to(root)
-        except ValueError:
-            return
         for line_num, line in enumerate(text.splitlines(), 1):
             if regex.search(line):
-                matches.append(f"{rel}:{line_num}: {line}")
+                matches.append(f"{file_path}:{line_num}: {line}")
                 if len(matches) >= 200:
                     return
 
@@ -249,7 +239,7 @@ def grep_search(
 
 @mcp.tool()
 def create_new_file(
-    path: Annotated[str, Field(description="File path relative to ROOT_DIR")],
+    path: Annotated[str, Field(description="File path (relative or absolute)")],
     content: Annotated[str, Field(description="Content to write")],
 ) -> str:
     """Create a new file. Fails if the file already exists."""
@@ -263,7 +253,7 @@ def create_new_file(
 
 @mcp.tool()
 def write_file(
-    path: Annotated[str, Field(description="File path relative to ROOT_DIR")],
+    path: Annotated[str, Field(description="File path (relative or absolute)")],
     content: Annotated[str, Field(description="Content to write")],
 ) -> str:
     """Write content to a file, creating or overwriting it."""
@@ -275,7 +265,7 @@ def write_file(
 
 @mcp.tool()
 def single_find_and_replace(
-    path: Annotated[str, Field(description="File path relative to ROOT_DIR")],
+    path: Annotated[str, Field(description="File path (relative or absolute)")],
     find_str: Annotated[str, Field(description="String to find")],
     replace_str: Annotated[str, Field(description="Replacement string")],
     occurrence: Annotated[int, Field(description="Which occurrence to replace (1-indexed)")] = 1,
@@ -327,7 +317,7 @@ def single_find_and_replace(
 
 @mcp.tool()
 def delete_file(
-    path: Annotated[str, Field(description="File path relative to ROOT_DIR")],
+    path: Annotated[str, Field(description="File path (relative or absolute)")],
     confirm: Annotated[bool, Field(description="Must be true to confirm deletion")] = False,
 ) -> str:
     """Delete a file. Requires confirm=true as a safety measure."""
@@ -342,7 +332,7 @@ def delete_file(
 
 @mcp.tool()
 def create_directory(
-    path: Annotated[str, Field(description="Directory path relative to ROOT_DIR")],
+    path: Annotated[str, Field(description="Directory path (relative or absolute)")],
 ) -> str:
     """Create a directory and any missing parent directories."""
     resolved = resolve_path(path)
@@ -357,7 +347,7 @@ def create_directory(
 
 @mcp.tool()
 def view_diff(
-    path_a: Annotated[str, Field(description="First file path relative to ROOT_DIR")],
+    path_a: Annotated[str, Field(description="First file path (relative or absolute)")],
     path_b_or_content: Annotated[str, Field(description="Second file path or string content")],
     is_content: Annotated[bool, Field(description="If true, treat path_b_or_content as string content")] = False,
 ) -> str:
@@ -410,14 +400,12 @@ def run_terminal_command(
             f"Allowed: {', '.join(sorted(allowed))}"
         )
 
-    root = get_root_dir()
     try:
         result = subprocess.run(
             parts,
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=str(root),
         )
     except subprocess.TimeoutExpired:
         raise ToolError(f"Command timed out after {timeout}s.")
