@@ -1,6 +1,6 @@
 ---
 name: filesystem-server
-description: Provides sandboxed file and terminal operations. All paths are resolved within ROOT_DIR and cannot escape it.
+description: Provides file and terminal operations. Paths can be relative (resolved against current working directory) or absolute.
 ---
 
 ## Tools
