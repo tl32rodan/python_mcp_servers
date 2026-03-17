@@ -245,22 +245,65 @@ def create_new_file(
     """Create a new file. Fails if the file already exists."""
     resolved = resolve_path(path)
     if resolved.exists():
-        raise ToolError(f"'{path}' already exists. Use write_file to overwrite.")
+        raise ToolError(f"'{path}' already exists.")
     resolved.parent.mkdir(parents=True, exist_ok=True)
     resolved.write_text(content, encoding="utf-8")
     return f"Created: {path}"
 
 
 @mcp.tool()
-def write_file(
+def write_file_range(
     path: Annotated[str, Field(description="File path (relative or absolute)")],
-    content: Annotated[str, Field(description="Content to write")],
+    content: Annotated[str, Field(description="New content for the specified line range")],
+    start_line: Annotated[int, Field(description="Start line number (1-indexed)")],
+    end_line: Annotated[int, Field(description="End line number (inclusive, replaced with new content)")],
 ) -> str:
-    """Write content to a file, creating or overwriting it."""
+    """Replace a range of lines in an existing file (1-indexed, inclusive).
+
+    Lines from start_line to end_line are replaced with the provided content.
+    The file must already exist.
+    """
     resolved = resolve_path(path)
-    resolved.parent.mkdir(parents=True, exist_ok=True)
-    resolved.write_text(content, encoding="utf-8")
-    return f"Written: {path}"
+    if not resolved.is_file():
+        raise ToolError(f"'{path}' is not a file or does not exist.")
+    if start_line < 1:
+        raise ToolError("start_line must be >= 1.")
+    if end_line < start_line:
+        raise ToolError("end_line must be >= start_line.")
+
+    try:
+        all_lines = resolved.read_text(encoding="utf-8").splitlines(keepends=True)
+    except UnicodeDecodeError:
+        raise ToolError(f"'{path}' appears to be a binary file.")
+
+    total = len(all_lines)
+    if start_line > total:
+        raise ToolError(f"start_line {start_line} exceeds file length ({total} lines).")
+
+    end = min(end_line, total)
+
+    # Build new content: ensure it ends with newline for proper splicing
+    new_lines = content.splitlines(keepends=True)
+    if new_lines and not new_lines[-1].endswith("\n"):
+        # Preserve trailing newline style from original if last replaced line had one
+        if end <= total and all_lines[end - 1].endswith("\n"):
+            new_lines[-1] += "\n"
+
+    result_lines = all_lines[: start_line - 1] + new_lines + all_lines[end:]
+    resolved.write_text("".join(result_lines), encoding="utf-8")
+
+    # Return context around the edit
+    written_count = len(new_lines)
+    ctx_start = max(0, start_line - 2)
+    ctx_end = min(len(result_lines), start_line - 1 + written_count + 2)
+    context = [
+        f"{ctx_start + j + 1:>6}\t{result_lines[ctx_start + j].rstrip(chr(10))}"
+        for j in range(ctx_end - ctx_start)
+    ]
+    return (
+        f"Replaced lines {start_line}-{end} with {written_count} line(s) in {path}:\n"
+        + "\n".join(context)
+    )
 
 
 @mcp.tool()

@@ -17,7 +17,7 @@ description: Provides file and terminal operations. Paths can be relative (resol
 
 ### Writing
 - `create_new_file(path, content)` - Create a new file (fails if it already exists)
-- `write_file(path, content)` - Write or overwrite a file
+- `write_file_range(path, content, start_line, end_line)` - Replace a range of lines in a file (1-indexed, inclusive)
 - `single_find_and_replace(path, find, replace, occurrence?)` - Replace the nth occurrence of a string
 - `create_directory(path)` - Create a directory (including parents)
 - `delete_file(path, confirm=True)` - Delete a file

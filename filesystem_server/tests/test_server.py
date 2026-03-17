@@ -16,7 +16,7 @@ from filesystem_server.server import (
     read_file_range,
     grep_search,
     create_new_file,
-    write_file,
+    write_file_range,
     single_find_and_replace,
     delete_file,
     create_directory,
@@ -242,20 +242,46 @@ class TestCreateNewFile:
         assert (tmp_path / "a" / "b" / "c.txt").read_text() == "nested"
 
 
-class TestWriteFile:
-    def test_write_new(self, tmp_path):
-        write_file("out.txt", "data")
-        assert (tmp_path / "out.txt").read_text() == "data"
+class TestWriteFileRange:
+    def test_replace_middle_lines(self, tmp_path):
+        (tmp_path / "f.txt").write_text("line1\nline2\nline3\nline4\nline5\n")
+        result = write_file_range("f.txt", "NEW2\nNEW3\n", 2, 3)
+        assert "Replaced lines 2-3" in result
+        assert (tmp_path / "f.txt").read_text() == "line1\nNEW2\nNEW3\nline4\nline5\n"
 
-    def test_write_overwrite(self, tmp_path):
-        (tmp_path / "out.txt").write_text("old")
-        write_file("out.txt", "new")
-        assert (tmp_path / "out.txt").read_text() == "new"
+    def test_replace_single_line(self, tmp_path):
+        (tmp_path / "f.txt").write_text("aaa\nbbb\nccc\n")
+        write_file_range("f.txt", "XXX\n", 2, 2)
+        assert (tmp_path / "f.txt").read_text() == "aaa\nXXX\nccc\n"
 
-    def test_write_absolute_path(self, tmp_path):
-        target = tmp_path / "abs_write.txt"
-        write_file(str(target), "absolute data")
-        assert target.read_text() == "absolute data"
+    def test_replace_with_fewer_lines(self, tmp_path):
+        (tmp_path / "f.txt").write_text("a\nb\nc\nd\n")
+        write_file_range("f.txt", "MERGED\n", 2, 3)
+        assert (tmp_path / "f.txt").read_text() == "a\nMERGED\nd\n"
+
+    def test_replace_with_more_lines(self, tmp_path):
+        (tmp_path / "f.txt").write_text("a\nb\nc\n")
+        write_file_range("f.txt", "X\nY\nZ\n", 2, 2)
+        assert (tmp_path / "f.txt").read_text() == "a\nX\nY\nZ\nc\n"
+
+    def test_file_not_found(self):
+        with pytest.raises(ToolError, match="not a file"):
+            write_file_range("nope.txt", "data", 1, 1)
+
+    def test_start_line_invalid(self, tmp_path):
+        (tmp_path / "f.txt").write_text("line\n")
+        with pytest.raises(ToolError, match="start_line must be"):
+            write_file_range("f.txt", "x", 0, 1)
+
+    def test_end_before_start(self, tmp_path):
+        (tmp_path / "f.txt").write_text("a\nb\n")
+        with pytest.raises(ToolError, match="end_line must be"):
+            write_file_range("f.txt", "x", 3, 1)
+
+    def test_start_beyond_file(self, tmp_path):
+        (tmp_path / "f.txt").write_text("one\n")
+        with pytest.raises(ToolError, match="exceeds file length"):
+            write_file_range("f.txt", "x", 5, 6)
 
 
 class TestSingleFindAndReplace:
