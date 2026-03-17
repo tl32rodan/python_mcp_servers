@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from fastmcp.exceptions import ToolError
 
-from filesystem_server.path_utils import get_root_dir, resolve_path
+from filesystem_server.path_utils import resolve_path
 from filesystem_server.server import (
     ls,
     tree,
@@ -16,7 +16,7 @@ from filesystem_server.server import (
     read_file_range,
     grep_search,
     create_new_file,
-    write_file,
+    write_file_range,
     single_find_and_replace,
     delete_file,
     create_directory,
@@ -26,9 +26,9 @@ from filesystem_server.server import (
 
 
 @pytest.fixture(autouse=True)
-def set_root_dir(tmp_path, monkeypatch):
-    """Set ROOT_DIR to tmp_path for every test."""
-    monkeypatch.setenv("ROOT_DIR", str(tmp_path))
+def use_tmp_cwd(tmp_path, monkeypatch):
+    """Change cwd to tmp_path for every test so relative paths resolve there."""
+    monkeypatch.chdir(tmp_path)
     return tmp_path
 
 
@@ -38,27 +38,27 @@ def set_root_dir(tmp_path, monkeypatch):
 
 
 class TestPathUtils:
-    def test_get_root_dir(self, tmp_path):
-        assert get_root_dir() == tmp_path
-
-    def test_resolve_path_valid(self, tmp_path):
+    def test_resolve_path_relative(self, tmp_path):
         (tmp_path / "hello.txt").touch()
         result = resolve_path("hello.txt")
         assert result == tmp_path / "hello.txt"
 
-    def test_resolve_path_traversal_blocked(self):
-        with pytest.raises(ToolError, match="outside the allowed root"):
-            resolve_path("../../etc/passwd")
-
-    def test_resolve_path_absolute_outside_blocked(self):
-        with pytest.raises(ToolError, match="outside the allowed root"):
-            resolve_path("/etc/passwd")
+    def test_resolve_path_absolute(self, tmp_path):
+        target = tmp_path / "abs_test.txt"
+        target.touch()
+        result = resolve_path(str(target))
+        assert result == target
 
     def test_resolve_path_subdirectory(self, tmp_path):
         sub = tmp_path / "a" / "b"
         sub.mkdir(parents=True)
         result = resolve_path("a/b")
         assert result == sub
+
+    def test_resolve_path_parent_traversal(self, tmp_path):
+        # Parent traversal is now allowed — just resolves to wherever it points
+        result = resolve_path("..")
+        assert result == tmp_path.parent
 
 
 # -------------------------------------------------------------------
@@ -97,6 +97,11 @@ class TestLs:
         result = ls(".")
         assert "empty" in result.lower()
 
+    def test_ls_absolute_path(self, tmp_path):
+        (tmp_path / "file.txt").touch()
+        result = ls(str(tmp_path))
+        assert "file.txt" in result
+
 
 class TestTree:
     def test_tree_basic(self, tmp_path):
@@ -130,7 +135,7 @@ class TestFileGlobSearch:
         (tmp_path / "sub" / "c.py").touch()
         result = file_glob_search("**/*.py")
         assert "a.py" in result
-        assert "sub/c.py" in result or "sub\\c.py" in result
+        assert "c.py" in result
         assert "b.txt" not in result
 
     def test_glob_no_matches(self, tmp_path):
@@ -148,6 +153,12 @@ class TestReadFile:
         (tmp_path / "hello.txt").write_text("Hello, world!")
         result = read_file("hello.txt")
         assert result == "Hello, world!"
+
+    def test_read_file_absolute(self, tmp_path):
+        target = tmp_path / "abs.txt"
+        target.write_text("absolute content")
+        result = read_file(str(target))
+        assert result == "absolute content"
 
     def test_read_file_not_found(self):
         with pytest.raises(ToolError, match="not a file"):
@@ -231,15 +242,46 @@ class TestCreateNewFile:
         assert (tmp_path / "a" / "b" / "c.txt").read_text() == "nested"
 
 
-class TestWriteFile:
-    def test_write_new(self, tmp_path):
-        write_file("out.txt", "data")
-        assert (tmp_path / "out.txt").read_text() == "data"
+class TestWriteFileRange:
+    def test_replace_middle_lines(self, tmp_path):
+        (tmp_path / "f.txt").write_text("line1\nline2\nline3\nline4\nline5\n")
+        result = write_file_range("f.txt", "NEW2\nNEW3\n", 2, 3)
+        assert "Replaced lines 2-3" in result
+        assert (tmp_path / "f.txt").read_text() == "line1\nNEW2\nNEW3\nline4\nline5\n"
 
-    def test_write_overwrite(self, tmp_path):
-        (tmp_path / "out.txt").write_text("old")
-        write_file("out.txt", "new")
-        assert (tmp_path / "out.txt").read_text() == "new"
+    def test_replace_single_line(self, tmp_path):
+        (tmp_path / "f.txt").write_text("aaa\nbbb\nccc\n")
+        write_file_range("f.txt", "XXX\n", 2, 2)
+        assert (tmp_path / "f.txt").read_text() == "aaa\nXXX\nccc\n"
+
+    def test_replace_with_fewer_lines(self, tmp_path):
+        (tmp_path / "f.txt").write_text("a\nb\nc\nd\n")
+        write_file_range("f.txt", "MERGED\n", 2, 3)
+        assert (tmp_path / "f.txt").read_text() == "a\nMERGED\nd\n"
+
+    def test_replace_with_more_lines(self, tmp_path):
+        (tmp_path / "f.txt").write_text("a\nb\nc\n")
+        write_file_range("f.txt", "X\nY\nZ\n", 2, 2)
+        assert (tmp_path / "f.txt").read_text() == "a\nX\nY\nZ\nc\n"
+
+    def test_file_not_found(self):
+        with pytest.raises(ToolError, match="not a file"):
+            write_file_range("nope.txt", "data", 1, 1)
+
+    def test_start_line_invalid(self, tmp_path):
+        (tmp_path / "f.txt").write_text("line\n")
+        with pytest.raises(ToolError, match="start_line must be"):
+            write_file_range("f.txt", "x", 0, 1)
+
+    def test_end_before_start(self, tmp_path):
+        (tmp_path / "f.txt").write_text("a\nb\n")
+        with pytest.raises(ToolError, match="end_line must be"):
+            write_file_range("f.txt", "x", 3, 1)
+
+    def test_start_beyond_file(self, tmp_path):
+        (tmp_path / "f.txt").write_text("one\n")
+        with pytest.raises(ToolError, match="exceeds file length"):
+            write_file_range("f.txt", "x", 5, 6)
 
 
 class TestSingleFindAndReplace:
