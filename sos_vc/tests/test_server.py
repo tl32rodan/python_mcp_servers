@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastmcp.exceptions import ToolError
 
-from sos.server import (
+from sos_vc.server import (
     sos_checkin,
     sos_checkout,
     sos_create,
@@ -30,7 +30,7 @@ def _mock_result(stdout="", stderr="", returncode=0):
 
 
 class TestSosCreate:
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_create_success(self, mock_run):
         mock_run.return_value = _mock_result(stdout="Created foo.v")
         result = sos_create(paths=["foo.v"])
@@ -39,7 +39,7 @@ class TestSosCreate:
         args = mock_run.call_args[0][0]
         assert args == ["soscmd", "create", "foo.v"]
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_create_multiple(self, mock_run):
         mock_run.return_value = _mock_result(stdout="Created 2 objects")
         result = sos_create(paths=["a.v", "b.v"])
@@ -50,7 +50,7 @@ class TestSosCreate:
         with pytest.raises(ToolError, match="At least one path"):
             sos_create(paths=[])
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_create_failure(self, mock_run):
         mock_run.return_value = _mock_result(
             stderr="Permission denied", returncode=1
@@ -65,7 +65,7 @@ class TestSosCreate:
 
 
 class TestSosPopulate:
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_populate_success(self, mock_run):
         mock_run.return_value = _mock_result(stdout="Populated rtl/")
         result = sos_populate(paths=["rtl/"])
@@ -77,7 +77,7 @@ class TestSosPopulate:
         with pytest.raises(ToolError, match="At least one path"):
             sos_populate(paths=[])
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_populate_failure(self, mock_run):
         mock_run.return_value = _mock_result(
             stderr="Object not found", returncode=1
@@ -92,7 +92,7 @@ class TestSosPopulate:
 
 
 class TestSosUpdateSelected:
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_update_no_paths(self, mock_run):
         mock_run.return_value = _mock_result(stdout="Updated 5 objects")
         result = sos_update_selected()
@@ -100,14 +100,14 @@ class TestSosUpdateSelected:
         args = mock_run.call_args[0][0]
         assert args == ["soscmd", "updatesel"]
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_update_with_paths(self, mock_run):
         mock_run.return_value = _mock_result(stdout="Updated rtl/")
         result = sos_update_selected(paths=["rtl/"])
         args = mock_run.call_args[0][0]
         assert args == ["soscmd", "updatesel", "rtl/"]
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_update_failure(self, mock_run):
         mock_run.return_value = _mock_result(stderr="No workarea", returncode=1)
         with pytest.raises(ToolError, match="No workarea"):
@@ -120,7 +120,7 @@ class TestSosUpdateSelected:
 
 
 class TestSosCheckout:
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_checkout_success(self, mock_run):
         mock_run.return_value = _mock_result(stdout="Checked out alu.v")
         result = sos_checkout(paths=["alu.v"])
@@ -128,7 +128,7 @@ class TestSosCheckout:
         args = mock_run.call_args[0][0]
         assert args == ["soscmd", "co", "alu.v"]
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_checkout_multiple(self, mock_run):
         mock_run.return_value = _mock_result(stdout="Checked out 2 files")
         result = sos_checkout(paths=["a.v", "b.v"])
@@ -139,7 +139,7 @@ class TestSosCheckout:
         with pytest.raises(ToolError, match="At least one path"):
             sos_checkout(paths=[])
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_checkout_failure(self, mock_run):
         mock_run.return_value = _mock_result(
             stderr="Already checked out", returncode=1
@@ -154,7 +154,7 @@ class TestSosCheckout:
 
 
 class TestSosCheckin:
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_checkin_success(self, mock_run):
         mock_run.return_value = _mock_result(stdout="Checked in alu.v")
         result = sos_checkin(paths=["alu.v"], log_message="fix timing")
@@ -162,7 +162,7 @@ class TestSosCheckin:
         args = mock_run.call_args[0][0]
         assert args == ["soscmd", "ci", "-D", '-aLog="fix timing"', "alu.v"]
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_checkin_empty_log(self, mock_run):
         mock_run.return_value = _mock_result(stdout="Checked in alu.v")
         sos_checkin(paths=["alu.v"])
@@ -173,7 +173,7 @@ class TestSosCheckin:
         with pytest.raises(ToolError, match="At least one path"):
             sos_checkin(paths=[])
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_checkin_failure(self, mock_run):
         mock_run.return_value = _mock_result(
             stderr="Not checked out", returncode=1
@@ -188,19 +188,19 @@ class TestSosCheckin:
 
 
 class TestCommon:
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="soscmd", timeout=120)
         with pytest.raises(ToolError, match="timed out"):
             sos_checkout(paths=["alu.v"])
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_soscmd_not_found(self, mock_run):
         mock_run.side_effect = FileNotFoundError()
         with pytest.raises(ToolError, match="not found"):
             sos_checkout(paths=["alu.v"])
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_custom_sos_cmd(self, mock_run, monkeypatch):
         monkeypatch.setenv("SOS_CMD", "/opt/sos/bin/soscmd")
         mock_run.return_value = _mock_result(stdout="OK")
@@ -208,7 +208,7 @@ class TestCommon:
         args = mock_run.call_args[0][0]
         assert args[0] == "/opt/sos/bin/soscmd"
 
-    @patch("sos.server.subprocess.run")
+    @patch("sos_vc.server.subprocess.run")
     def test_empty_stdout_returns_success_message(self, mock_run):
         mock_run.return_value = _mock_result(stdout="")
         result = sos_create(paths=["foo.v"])
