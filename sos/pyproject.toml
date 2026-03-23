@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sos-server"
+name = "sos"
 version = "0.1.0"
 description = "MCP Server for ClioSoft SOS version control"
 requires-python = ">=3.11"
@@ -12,8 +12,8 @@ dependencies = [
 ]
 
 [project.scripts]
-sos-server = "sos_server.server:mcp.run"
+sos = "sos.server:mcp.run"
 
 [tool.setuptools.packages.find]
 where = [".."]
-include = ["sos_server*"]
+include = ["sos*"]
