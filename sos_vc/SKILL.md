@@ -1,17 +1,13 @@
 ---
 name: ClioSoft SOS
-description: Version control operations for ClioSoft SOS design data management
+description: Version control for ClioSoft SOS design data management
 ---
 
-# ClioSoft SOS MCP Server
-
-MCP server exposing commonly-used `soscmd` operations for daily IC design workflows.
-
-## What is ClioSoft SOS?
+# ClioSoft SOS
 
 ClioSoft SOS (Source Object Server) is a **server-based version control system** purpose-built for semiconductor / IC design data. Unlike Git (which is file-based and distributed), SOS is centralized and manages **design objects** — Verilog/VHDL sources, netlists, layout databases, libraries, and other EDA tool artifacts that are often large, binary, or directory-structured.
 
-### Key Concepts
+## Key Concepts
 
 | Concept | Description |
 |---------|-------------|
@@ -23,42 +19,49 @@ ClioSoft SOS (Source Object Server) is a **server-based version control system**
 | **Populate** | Copies files from the server vault into the local workarea so they can be viewed or edited. |
 | **Create** | Registers new files or directories into the SOS project so they become version-controlled. |
 
-### Typical Workflow
-
-```
-1. Populate workarea     →  soscmd populate <paths>
-2. Check out files       →  soscmd co <paths>        (acquires lock)
-3. Edit files locally    →  (use EDA tools)
-4. Check in files        →  soscmd ci -D <paths>     (releases lock, uploads changes)
-5. Update to latest RSO  →  soscmd updatesel          (sync workarea to baseline)
-```
-
-### How SOS Differs from Git
+## How SOS Differs from Git
 
 - **Centralized**: single source of truth on the SOS server; no local repository.
 - **Lock-based**: prevents concurrent edits to the same file — critical for binary EDA formats that cannot be merged.
 - **Design-data aware**: handles large binary files, deep directory hierarchies, and EDA library structures natively.
 - **No branching/merging in the Git sense**: uses RSOs and project configurations for parallel development.
 
-## Configuration
+## Commands
 
-| Environment Variable | Default  | Description                |
-|---------------------|----------|----------------------------|
-| `SOS_CMD`           | `soscmd` | Path to the soscmd binary  |
-| `SOS_TIMEOUT`       | `120`    | Command timeout in seconds |
+All commands use the `soscmd` CLI. They must be run from within an SOS workarea directory.
 
-## Tools
+### `soscmd create <path> [<path> ...]`
 
-### Project Management
+Register new files or directories into the SOS project so they become version-controlled.
 
-- **`sos_create(paths)`** — Register new files or directories into the SOS project so they become version-controlled.
-- **`sos_populate(paths)`** — Copy files from the server vault into the local workarea.
+### `soscmd populate <path> [<path> ...]`
 
-### Synchronization
+Copy files from the server vault into the local workarea so they can be viewed or edited.
 
-- **`sos_update_selected(paths?)`** — Update selected objects in the workarea to match the current RSO (baseline). If no paths given, updates everything.
+### `soscmd co <path> [<path> ...]`
 
-### Check-out / Check-in
+Check out files, acquiring a lock so no other designer can edit them concurrently. Files become writable after checkout.
 
-- **`sos_checkout(paths)`** — Check out files, acquiring a lock so no other designer can edit them concurrently.
-- **`sos_checkin(paths, log_message?)`** — Check in files with `-D` (delete local writable copy after upload) and an optional log message describing the change.
+### `soscmd ci -D [-aLog="<message>"] <path> [<path> ...]`
+
+Check in files, releasing the lock and uploading changes to the server. The `-D` flag deletes the local writable copy after upload (restoring the read-only populated version). Use `-aLog="<message>"` to attach a log message.
+
+### `soscmd updatesel [<path> ...]`
+
+Update selected objects in the workarea to match the current RSO (baseline). If no paths are given, updates all selected objects.
+
+## Typical Workflow
+
+```
+1. Populate workarea     →  soscmd populate <paths>
+2. Check out files       →  soscmd co <paths>              (acquires lock)
+3. Edit files locally    →  (use EDA tools)
+4. Check in files        →  soscmd ci -D <paths>           (releases lock, uploads changes)
+5. Update to latest RSO  →  soscmd updatesel               (sync workarea to baseline)
+```
+
+## Important Notes
+
+- Always verify command output after running `soscmd` — a non-zero exit code or stderr output indicates failure.
+- Only one designer can check out a file at a time (lock-based). If checkout fails with "Already checked out", another designer holds the lock.
+- `soscmd` must be on PATH, or specify the full path to the binary.
